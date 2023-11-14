@@ -1,137 +1,132 @@
+import 'dart:io';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:syncfusion_flutter_signaturepad/signaturepad.dart';
+import 'package:flutter/rendering.dart';
+import 'package:image_gallery_saver/image_gallery_saver.dart';
 
-void main() {
-  runApp(const MyApp());
+void main() => runApp(MyApp());
+
+class MyApp extends StatefulWidget {
+  @override
+  _MyAppState createState() => _MyAppState();
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class _MyAppState extends State<MyApp> {
+  Uint8List? _imageData;
+  GlobalKey<SfSignaturePadState> _signatureKey = GlobalKey();
+  GlobalKey _imageKey = GlobalKey();
+  bool _isImageLoaded = false;
 
-  // This widget is the root of your application.
+  Future<void> _pickImage() async {
+    final pickedFile = await ImagePicker().pickImage(source: ImageSource.gallery);
+    if (pickedFile != null) {
+      setState(() {
+        _imageData = File(pickedFile.path).readAsBytesSync();
+        _isImageLoaded = true;
+      });
+    }
+  }
+
+  Future<void> _saveSignature() async {
+    if (_imageData == null) return;
+
+    RenderRepaintBoundary? boundary = _imageKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+    if (boundary != null) {
+      ui.Image image = await boundary.toImage();
+      ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      Uint8List pngBytes = byteData!.buffer.asUint8List();
+      _saveImage(pngBytes);
+    }
+  }
+
+  Future<void> _saveImage(Uint8List bytes) async {
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      final imagePath = '${directory.path}/signed_image_${DateTime.now().millisecondsSinceEpoch}.png';
+      final imageFile = File(imagePath);
+      await imageFile.writeAsBytes(bytes);
+
+      await ImageGallerySaver.saveImage(bytes, quality: 60, name: "image_name");
+      // 파일 저장 후 필요한 처리를 수행합니다.
+      print("Image saved");
+
+      showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: Text("Image Saved"),
+            content: Text("Your image has been saved successfully."),
+            actions: <Widget>[
+              TextButton(
+                child: Text("OK"),
+                onPressed: () {
+                  Navigator.of(context).pop(); // 팝업 닫기
+                  setState(() {
+                    _imageData = null; // 이미지 데이터 초기화
+                    _isImageLoaded = false; // 이미지 로드 상태 초기화
+                  });
+                },
+              ),
+            ],
+          );
+        },
+      );
+    } catch (e) {
+      print("Error saving image: $e");
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a blue toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.black),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.grey,
+      home: Scaffold(
+        appBar: AppBar(
+          title: Text('Signature on Image App'),
         ),
-        useMaterial3: true,
-      ),
-      home: const MyHomePage(title: 'Sign Image'),
-    );
-  }
-}
-
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
-
-  @override
-  State<MyHomePage> createState() => _MyHomePageState();
-}
-
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
-
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
-  }
-
-  Future<XFile?> pickImage() async {
-    final ImagePicker _picker = ImagePicker();
-    // Pick an image
-    final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
-    return image;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
-    return Scaffold(
-      appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: MainAxisAlignment.center,
+        body: Column(
           children: <Widget>[
-            const Text(
-              'You have pushed the button this many times:',
+            Expanded(
+              child: RepaintBoundary(
+                key: _imageKey,
+                child: Stack(
+                  children: [
+                    _imageData == null
+                        ? Center(child: Text('No image selected.'))
+                        : Image.memory(_imageData!),
+                    IgnorePointer(
+                      ignoring: !_isImageLoaded,
+                      child: SfSignaturePad(
+                        key: _signatureKey,
+                        backgroundColor: Colors.transparent,
+                        strokeColor: Colors.black,
+                        minimumStrokeWidth: 1.0,
+                        maximumStrokeWidth: 4.0,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: <Widget>[
+                ElevatedButton(
+                  onPressed: _pickImage,
+                  child: Text('Pick Image'),
+                ),
+                ElevatedButton(
+                  onPressed: _saveSignature,
+                  child: Text('Save Signature'),
+                ),
+              ],
             ),
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: pickImage,
-        tooltip: 'pick image',
-        backgroundColor: Colors.white,
-        child: const Icon(Icons.add, color: Colors.black,),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
     );
   }
 }
