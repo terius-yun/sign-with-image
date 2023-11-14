@@ -31,7 +31,7 @@ class _MyAppState extends State<MyApp> {
     }
   }
 
-  Future<void> _saveSignature() async {
+  Future<void> _saveSignature(BuildContext context) async {
     if (_imageData == null) return;
 
     RenderRepaintBoundary? boundary = _imageKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
@@ -39,11 +39,11 @@ class _MyAppState extends State<MyApp> {
       ui.Image image = await boundary.toImage();
       ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
       Uint8List pngBytes = byteData!.buffer.asUint8List();
-      _saveImage(pngBytes);
+      _saveImage(pngBytes,context);
     }
   }
 
-  Future<void> _saveImage(Uint8List bytes) async {
+  Future<void> _saveImage(Uint8List bytes, BuildContext context) async {
     try {
       final directory = await getApplicationDocumentsDirectory();
       final imagePath = '${directory.path}/signed_image_${DateTime.now().millisecondsSinceEpoch}.png';
@@ -54,6 +54,9 @@ class _MyAppState extends State<MyApp> {
       // 파일 저장 후 필요한 처리를 수행합니다.
       print("Image saved");
 
+      if (!mounted) return; // 위젯이 마운트되어 있는지 확인
+
+      // 이미지 저장 완료 후 팝업 표시
       showDialog(
         context: context,
         builder: (BuildContext context) {
@@ -65,10 +68,7 @@ class _MyAppState extends State<MyApp> {
                 child: Text("OK"),
                 onPressed: () {
                   Navigator.of(context).pop(); // 팝업 닫기
-                  setState(() {
-                    _imageData = null; // 이미지 데이터 초기화
-                    _isImageLoaded = false; // 이미지 로드 상태 초기화
-                  });
+                  _resetSignatureAndImage();
                 },
               ),
             ],
@@ -80,10 +80,26 @@ class _MyAppState extends State<MyApp> {
     }
   }
 
+  Future<void> _resetSignatureAndImage() async {
+    if (!mounted) return;
+
+    setState(() {
+      // 이미지 데이터 초기화
+      _imageData = null;
+      _isImageLoaded = false;
+
+      // 서명 데이터 초기화
+      if (_signatureKey.currentState != null) {
+        _signatureKey.currentState!.clear();
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      home: Scaffold(
+      home: Builder( builder: (BuildContext context) {
+        return Scaffold(
         appBar: AppBar(
           title: Text('Signature on Image App'),
         ),
@@ -119,14 +135,18 @@ class _MyAppState extends State<MyApp> {
                   child: Text('Pick Image'),
                 ),
                 ElevatedButton(
-                  onPressed: _saveSignature,
+                  onPressed: (){
+                    _saveSignature(context);
+                  },
                   child: Text('Save Signature'),
                 ),
               ],
             ),
           ],
         ),
-      ),
+      );
+      },
+    )
     );
   }
 }
